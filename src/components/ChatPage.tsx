@@ -1,356 +1,348 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, FC } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Send, 
-  Paperclip, 
-  Code2, 
-  Hash, 
-  Users, 
-  Settings, 
-  Search,
-  Menu,
-  X,
-  Moon,
-  Sun,
-  Circle,
-  MoreVertical,
-  Smile
-} from 'lucide-react';
+import { Send, Paperclip, Code2, Hash, Users, Settings, Search, Menu, X, Moon, Sun, UserPlus, XCircle, Smile } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { User, Page } from '../App';
+import axios from 'axios';
+import io, { Socket } from 'socket.io-client';
+import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react';
+import ReactMarkdown from 'react-markdown';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+const ENDPOINT = 'http://localhost:5000';
+let socket: Socket;
 
 interface ChatPageProps {
-  onNavigate: (page: string) => void;
+  user: User;
+  onNavigate: (page: Page) => void;
 }
 
-interface Message {
-  id: string;
-  user: string;
-  avatar: string;
+interface IMessage {
+  _id: string;
+  sender: { _id: string; name: string; avatar: string };
   content: string;
-  timestamp: string;
-  type: 'text' | 'code' | 'file';
+  chat: { _id: string; users: User[] };
+  createdAt: string;
+  type?: string;
 }
 
-interface User {
-  id: string;
-  name: string;
-  avatar: string;
-  status: 'online' | 'away' | 'busy' | 'offline';
+interface IChat {
+  _id: string;
+  chatName: string;
+  isGroupChat: boolean;
+  users: User[];
+  groupAdmin?: User;
 }
 
-export const ChatPage: React.FC<ChatPageProps> = ({ onNavigate }) => {
+const CodeBlock: FC<any> = ({ node, inline, className, children, ...props }) => {
+    const match = /language-(\w+)/.exec(className || '');
+    return !inline && match ? (
+        <SyntaxHighlighter
+            style={atomDark as any}
+            language={match[1]}
+            PreTag="div"
+            {...props}
+        >
+            {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+    ) : (
+        <code className={className} {...props}>
+            {children}
+        </code>
+    );
+};
+
+export const ChatPage: React.FC<ChatPageProps> = ({ user, onNavigate }) => {
   const { isDark, toggleTheme } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [message, setMessage] = useState('');
-  const [activeChannel, setActiveChannel] = useState('general');
+  const [chats, setChats] = useState<IChat[]>([]);
+  const [selectedChat, setSelectedChat] = useState<IChat | null>(null);
+  const [messages, setMessages] = useState<IMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  const [isTyping, setIsTyping] = useState(false);
+  
+  const [showUserSearch, setShowUserSearch] = useState(false);
+  const [showGroupModal, setShowGroupModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  
+  const [groupChatName, setGroupChatName] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<User[]>([]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  useEffect(() => {
+    socket = io(ENDPOINT);
+    socket.emit('setup', user._id);
+    socket.on('onlineUsers', (users) => setOnlineUsers(users));
+    
+    fetchChats();
+
+    return () => { socket.disconnect(); };
+  }, [user]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, []);
+    const handleMessageReceived = (newMessageReceived: IMessage) => {
+      if (selectedChat?._id === newMessageReceived.chat._id) {
+        setMessages((prev) => [...prev, newMessageReceived]);
+      }
+    };
+    
+    const handleTyping = () => setIsTyping(true);
+    const handleStopTyping = () => setIsTyping(false);
 
-  const mockMessages: Message[] = [
-    {
-      id: '1',
-      user: 'Alex Chen',
-      avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?w=150',
-      content: 'Hey everyone! Just pushed the new authentication flow. Can someone review the PR?',
-      timestamp: '10:30 AM',
-      type: 'text'
-    },
-    {
-      id: '2',
-      user: 'Sarah Kim',
-      avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=150',
-      content: 'Looking good! I\'ll test it on my local environment.',
-      timestamp: '10:32 AM',
-      type: 'text'
-    },
-    {
-      id: '3',
-      user: 'Mike Johnson',
-      avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?w=150',
-      content: 'const authenticateUser = async (credentials) => {\n  try {\n    const response = await api.post(\'/auth/login\', credentials);\n    return response.data;\n  } catch (error) {\n    throw new Error(\'Authentication failed\');\n  }\n};',
-      timestamp: '10:35 AM',
-      type: 'code'
-    },
-    {
-      id: '4',
-      user: 'Emma Davis',
-      avatar: 'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?w=150',
-      content: 'Nice work on the error handling! 🚀',
-      timestamp: '10:37 AM',
-      type: 'text'
-    }
-  ];
+    socket.on('message received', handleMessageReceived);
+    socket.on('typing', handleTyping);
+    socket.on('stop typing', handleStopTyping);
 
-  const mockUsers: User[] = [
-    { id: '1', name: 'Alex Chen', avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?w=150', status: 'online' },
-    { id: '2', name: 'Sarah Kim', avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?w=150', status: 'online' },
-    { id: '3', name: 'Mike Johnson', avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?w=150', status: 'away' },
-    { id: '4', name: 'Emma Davis', avatar: 'https://images.pexels.com/photos/1181519/pexels-photo-1181519.jpeg?w=150', status: 'online' },
-    { id: '5', name: 'David Wilson', avatar: 'https://images.pexels.com/photos/1212984/pexels-photo-1212984.jpeg?w=150', status: 'busy' },
-  ];
+    return () => {
+      socket.off('message received', handleMessageReceived);
+      socket.off('typing', handleTyping);
+      socket.off('stop typing', handleStopTyping);
+    };
+  }, [selectedChat]);
+  
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const channels = [
-    { id: 'general', name: 'general', type: 'text' },
-    { id: 'random', name: 'random', type: 'text' },
-    { id: 'dev-frontend', name: 'dev-frontend', type: 'text' },
-    { id: 'dev-backend', name: 'dev-backend', type: 'text' },
-    { id: 'design', name: 'design', type: 'text' },
-  ];
+  const handleSelectChat = (chat: IChat) => {
+    setSelectedChat(chat);
+    fetchMessages(chat);
+  };
+  
+  const handleTypingChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewMessage(e.target.value);
+    if (!socket || !selectedChat) return;
+    
+    socket.emit('typing', selectedChat._id);
+    const lastTypingTime = new Date().getTime();
+    const timerLength = 3000;
+    setTimeout(() => {
+      const timeNow = new Date().getTime();
+      const timeDiff = timeNow - lastTypingTime;
+      if (timeDiff >= timerLength) {
+        socket.emit('stop typing', selectedChat._id);
+      }
+    }, timerLength);
+  };
 
-  const handleSendMessage = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (message.trim()) {
-      // Handle send message logic
-      setMessage('');
+  const onEmojiClick = (emojiData: EmojiClickData) => {
+    setNewMessage((prev) => prev + emojiData.emoji);
+    setShowEmojiPicker(false);
+  };
+  
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append('image', file);
+    try {
+        const config = { headers: { 'Content-Type': 'multipart/form-data' } };
+        const { data: filePath } = await axios.post('/api/upload', formData, config);
+        await sendMessage(filePath, 'image');
+    } catch (error) {
+        console.error('File upload failed', error);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'online': return 'bg-green-500';
-      case 'away': return 'bg-yellow-500';
-      case 'busy': return 'bg-red-500';
-      default: return 'bg-gray-400';
+  const sendMessage = async (content: string, type: string = 'text') => {
+    if (content && selectedChat) {
+      socket.emit('stop typing', selectedChat._id);
+      try {
+        const config = { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${user.token}` } };
+        const { data } = await axios.post('/api/message', { content, chatId: selectedChat._id, type }, config);
+        socket.emit('new message', data);
+        setMessages((prev) => [...prev, data]);
+      } catch (error) {
+        console.error('Failed to send message', error);
+      }
+    }
+  };
+
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendMessage(newMessage);
+    setNewMessage('');
+  };
+
+    const fetchChats = async () => {
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get('/api/chat', config);
+      setChats(data);
+    } catch (error) {
+      console.error('Failed to fetch chats');
+    }
+  };
+
+  const fetchMessages = async (chat: IChat) => {
+    if (!chat) return;
+    setLoading(true);
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get(`/api/message/${chat._id}`, config);
+      setMessages(data);
+      socket.emit('join chat', chat._id);
+    } catch (error) {
+      console.error('Failed to fetch messages');
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    try {
+      const config = { headers: { Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.get(`/api/user?search=${query}`, config);
+      setSearchResults(data);
+    } catch (error) {
+      console.error('Failed to search users');
+    }
+  };
+
+  const accessChat = async (userId: string) => {
+    try {
+      const config = { headers: { 'Content-type': 'application/json', Authorization: `Bearer ${user.token}` } };
+      const { data } = await axios.post('/api/chat', { userId }, config);
+      if (!chats.find((c) => c._id === data._id)) {
+        setChats([data, ...chats]);
+      }
+      handleSelectChat(data);
+      setShowUserSearch(false);
+    } catch (error) {
+      console.error('Failed to create chat');
+    }
+  };
+  
+  const handleCreateGroup = async () => {
+    if (!groupChatName || selectedUsers.length < 2) {
+      alert('Please provide a group name and select at least 2 users.');
+      return;
+    }
+    try {
+        const config = { headers: { Authorization: `Bearer ${user.token}` } };
+        const { data } = await axios.post('/api/chat/group', {
+            name: groupChatName,
+            users: JSON.stringify(selectedUsers.map(u => u._id))
+        }, config);
+        setChats([data, ...chats]);
+        handleSelectChat(data);
+        setShowGroupModal(false);
+    } catch (error) {
+        console.error('Failed to create group chat');
     }
   };
 
   return (
-    <div className="h-screen bg-gray-100 dark:bg-dark-900 flex transition-colors duration-500">
-      {/* Sidebar */}
-      <AnimatePresence>
-        {sidebarOpen && (
-          <motion.aside
-            initial={{ x: -300 }}
-            animate={{ x: 0 }}
-            exit={{ x: -300 }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="w-64 bg-white dark:bg-dark-800 border-r border-gray-200 dark:border-dark-700 flex flex-col"
-          >
-            {/* Sidebar Header */}
-            <div className="p-4 border-b border-gray-200 dark:border-dark-700">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-primary-500 rounded-lg">
-                    <Code2 className="w-6 h-6 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="font-bold text-gray-900 dark:text-white">CodeCollab</h1>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Team Workspace</p>
-                  </div>
+    <>
+      <div className="h-screen bg-gray-100 dark:bg-dark-900 flex">
+        <div className="w-80 bg-white dark:bg-dark-800 border-r flex flex-col">
+            <div className="p-4 border-b flex justify-between items-center">
+                <div className="flex items-center gap-3"> <Code2 className="text-primary-500"/> <h1 className="font-bold">CodeCollab</h1> </div>
+                <div className="flex gap-2">
+                    <button onClick={() => {setShowUserSearch(true); setSearchResults([]); setSearchQuery('');}} className="p-2 hover:bg-gray-200 dark:hover:bg-dark-700 rounded-full"><Search size={18}/></button>
+                    <button onClick={() => {setShowGroupModal(true); setSearchResults([]); setSearchQuery(''); setSelectedUsers([]); setGroupChatName('');}} className="p-2 hover:bg-gray-200 dark:hover:bg-dark-700 rounded-full"><Users size={18}/></button>
                 </div>
-                <button
-                  onClick={toggleTheme}
-                  className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition-colors duration-200"
-                >
-                  {isDark ? <Sun className="w-4 h-4 text-yellow-500" /> : <Moon className="w-4 h-4 text-dark-600" />}
-                </button>
-              </div>
             </div>
-
-            {/* Channels */}
-            <div className="flex-1 overflow-y-auto">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                    Channels
-                  </h3>
-                </div>
-                <div className="space-y-1">
-                  {channels.map((channel) => (
-                    <motion.button
-                      key={channel.id}
-                      onClick={() => setActiveChannel(channel.id)}
-                      className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg text-left transition-colors duration-200 ${
-                        activeChannel === channel.id
-                          ? 'bg-primary-100 dark:bg-primary-900/30 text-primary-700 dark:text-primary-300'
-                          : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-dark-700'
-                      }`}
-                      whileHover={{ x: 2 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <Hash className="w-4 h-4" />
-                      <span className="font-medium">{channel.name}</span>
-                    </motion.button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Online Users */}
-              <div className="p-4 border-t border-gray-200 dark:border-dark-700">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wide">
-                    Online — {mockUsers.filter(u => u.status === 'online').length}
-                  </h3>
-                </div>
-                <div className="space-y-2">
-                  {mockUsers.map((user) => (
-                    <motion.div
-                      key={user.id}
-                      className="flex items-center space-x-3 px-2 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-dark-700 transition-colors duration-200"
-                      whileHover={{ x: 2 }}
-                    >
-                      <div className="relative">
-                        <img
-                          src={user.avatar}
-                          alt={user.name}
-                          className="w-8 h-8 rounded-full object-cover"
-                        />
-                        <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white dark:border-dark-800 ${getStatusColor(user.status)}`} />
-                      </div>
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
-                        {user.name}
-                      </span>
-                    </motion.div>
-                  ))}
-                </div>
-              </div>
+            <div className="flex-1 overflow-y-auto p-2">
+                {chats.map(chat => (
+                    <div key={chat._id} onClick={() => handleSelectChat(chat)} className={`p-3 flex items-center gap-3 rounded-lg cursor-pointer ${selectedChat?._id === chat._id ? 'bg-primary-100 dark:bg-primary-900/50' : 'hover:bg-gray-100 dark:hover:bg-dark-700'}`}>
+                        <div className="relative">
+                            <img src={chat.users.find(u => u._id !== user._id)?.avatar || user.avatar} className="w-10 h-10 rounded-full"/>
+                            {onlineUsers.includes(chat.users.find(u => u._id !== user._id)?._id || '') && <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full border-2 border-white dark:border-dark-800"/>}
+                        </div>
+                        <p>{chat.isGroupChat ? chat.chatName : chat.users.find(u => u._id !== user._id)?.name}</p>
+                    </div>
+                ))}
             </div>
-
-            {/* User Profile */}
-            <div className="p-4 border-t border-gray-200 dark:border-dark-700">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <img
-                    src="https://images.pexels.com/photos/1212984/pexels-photo-1212984.jpeg?w=150"
-                    alt="Your Avatar"
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-green-500 rounded-full border-2 border-white dark:border-dark-800" />
-                </div>
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900 dark:text-white">You</p>
-                  <p className="text-xs text-green-600 dark:text-green-400">Online</p>
-                </div>
-                <button
-                  onClick={() => onNavigate('landing')}
-                  className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition-colors duration-200"
-                >
-                  <Settings className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                </button>
-              </div>
+            <div className="p-4 border-t flex items-center justify-between">
+                <div className="flex items-center gap-3"> <img src={user.avatar} className="w-10 h-10 rounded-full"/> <p>{user.name}</p> </div>
+                <button onClick={() => {localStorage.removeItem('userInfo'); onNavigate('landing')}}><Settings/></button>
             </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
-      {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
-        {/* Chat Header */}
-        <header className="bg-white dark:bg-dark-800 border-b border-gray-200 dark:border-dark-700 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition-colors duration-200 lg:hidden"
-              >
-                {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-              </button>
-              <Hash className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-              <h2 className="font-semibold text-gray-900 dark:text-white">
-                {channels.find(c => c.id === activeChannel)?.name}
-              </h2>
-              <div className="hidden sm:flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                <Circle className="w-1.5 h-1.5 fill-current" />
-                <span>{mockUsers.filter(u => u.status === 'online').length} members</span>
-              </div>
-            </div>
-            <div className="flex items-center space-x-2">
-              <button className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition-colors duration-200">
-                <Search className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-              </button>
-              <button className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-700 transition-colors duration-200">
-                <Users className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-              </button>
-            </div>
-          </div>
-        </header>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {mockMessages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3 }}
-              className="flex space-x-3 hover:bg-gray-50 dark:hover:bg-dark-800/50 -mx-4 px-4 py-2 rounded-lg transition-colors duration-200"
-            >
-              <img
-                src={msg.avatar}
-                alt={msg.user}
-                className="w-10 h-10 rounded-full object-cover flex-shrink-0"
-              />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-semibold text-gray-900 dark:text-white">
-                    {msg.user}
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                    {msg.timestamp}
-                  </span>
-                </div>
-                {msg.type === 'code' ? (
-                  <pre className="bg-gray-900 dark:bg-black text-green-400 p-4 rounded-lg overflow-x-auto text-sm font-code">
-                    <code>{msg.content}</code>
-                  </pre>
-                ) : (
-                  <p className="text-gray-700 dark:text-gray-300 break-words">
-                    {msg.content}
-                  </p>
-                )}
-              </div>
-            </motion.div>
-          ))}
-          <div ref={messagesEndRef} />
         </div>
-
-        {/* Message Input */}
-        <div className="bg-white dark:bg-dark-800 border-t border-gray-200 dark:border-dark-700 p-4">
-          <form onSubmit={handleSendMessage} className="flex items-end space-x-3">
-            <div className="flex-1">
-              <div className="relative">
-                <input
-                  type="text"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={`Message #${channels.find(c => c.id === activeChannel)?.name}`}
-                  className="w-full px-4 py-3 pr-20 bg-gray-100 dark:bg-dark-700 border-0 rounded-xl text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:ring-2 focus:ring-primary-500 transition-all duration-200"
-                />
-                <div className="absolute right-2 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors duration-200"
-                  >
-                    <Paperclip className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  </button>
-                  <button
-                    type="button"
-                    className="p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors duration-200"
-                  >
-                    <Smile className="w-4 h-4 text-gray-500 dark:text-gray-400" />
-                  </button>
-                </div>
-              </div>
+        
+        <div className="flex-1 flex flex-col">
+            {selectedChat ? (
+            <>
+            <div className="p-4 border-b flex items-center gap-3">
+                <img src={selectedChat.users.find(u => u._id !== user._id)?.avatar || user.avatar} className="w-10 h-10 rounded-full"/>
+                <p className="font-semibold">{selectedChat.isGroupChat ? selectedChat.chatName : selectedChat.users.find(u => u._id !== user._id)?.name}</p>
             </div>
-            <motion.button
-              type="submit"
-              disabled={!message.trim()}
-              className="p-3 bg-primary-500 text-white rounded-xl hover:bg-primary-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
-              whileHover={{ scale: message.trim() ? 1.05 : 1 }}
-              whileTap={{ scale: message.trim() ? 0.95 : 1 }}
-            >
-              <Send className="w-5 h-5" />
-            </motion.button>
-          </form>
+            <div className="flex-1 p-4 overflow-y-auto">
+                {messages.map(msg => (
+                    <div key={msg._id} className={`flex items-start gap-3 my-2 ${msg.sender._id === user._id ? 'flex-row-reverse' : ''}`}>
+                        <img src={msg.sender.avatar} className="w-8 h-8 rounded-full"/>
+                        <div className={`p-3 rounded-lg max-w-lg ${msg.sender._id === user._id ? 'bg-primary-500 text-white' : 'bg-gray-200 dark:bg-dark-700'}`}>
+                            {msg.type === 'image' ? <img src={ENDPOINT + msg.content} className="max-w-xs rounded-lg"/> : 
+                            <ReactMarkdown
+                                components={{ code: CodeBlock }}
+                            >
+                                {msg.content}
+                            </ReactMarkdown>
+                            }
+                        </div>
+                    </div>
+                ))}
+                {isTyping && <p className="text-sm text-gray-500">typing...</p>}
+                <div ref={messagesEndRef}/>
+            </div>
+            <div className="p-4 relative">
+                {showEmojiPicker && <div className="absolute bottom-20"><EmojiPicker onEmojiClick={onEmojiClick} theme={isDark ? EmojiTheme.DARK : EmojiTheme.LIGHT}/></div>}
+                <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+                    <div className="relative flex-1">
+                        <button type="button" onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="absolute left-3 top-1/2 -translate-y-1/2"><Smile/></button>
+                        <input value={newMessage} onChange={handleTypingChange} placeholder="Type a message...." className="w-full bg-gray-100 dark:bg-dark-700 rounded-full px-12 py-3 focus:outline-none"/>
+                        <label htmlFor="file-upload" className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer"><Paperclip/></label>
+                        <input id="file-upload" type="file" accept="image/*" className="hidden" onChange={handleFileUpload}/>
+                    </div>
+                    <button type="submit" disabled={!newMessage.trim()} className="p-3 bg-primary-500 text-white rounded-full disabled:opacity-50"><Send/></button>
+                </form>
+            </div>
+            </>
+            ) : ( <div className="h-full flex items-center justify-center text-gray-500">Select a chat or start a new one</div> )}
         </div>
       </div>
-    </div>
+
+      <AnimatePresence>
+        {(showUserSearch || showGroupModal) && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                {showUserSearch && (
+                    <div className="bg-white dark:bg-dark-800 rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-4">Start a New Chat</h2>
+                        <input value={searchQuery} onChange={e => handleSearch(e.target.value)} placeholder="Search by name or email" className="w-full p-2 border rounded mb-4"/>
+                        <div className="max-h-60 overflow-y-auto">
+                            {searchResults.map(u => <div key={u._id} onClick={() => accessChat(u._id)} className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-dark-700 cursor-pointer rounded"><img src={u.avatar} className="w-8 h-8 rounded-full mr-3"/><p>{u.name}</p></div>)}
+                        </div>
+                        <button onClick={() => setShowUserSearch(false)} className="mt-4 w-full p-2 bg-red-500 text-white rounded">Cancel</button>
+                    </div>
+                )}
+                {showGroupModal && (
+                    <div className="bg-white dark:bg-dark-800 rounded-lg p-6 w-full max-w-md">
+                        <h2 className="text-xl font-bold mb-4">Create Group Chat</h2>
+                        <input value={groupChatName} onChange={e => setGroupChatName(e.target.value)} placeholder="Group Name" className="w-full p-2 border rounded mb-4"/>
+                        <input value={searchQuery} onChange={e => handleSearch(e.target.value)} placeholder="Search users to add" className="w-full p-2 border rounded mb-4"/>
+                        <div className="flex flex-wrap gap-2 mb-4 min-h-[40px]">{selectedUsers.map(u => <div key={u._id} className="bg-primary-500 text-white px-2 py-1 rounded-full flex items-center">{u.name}<XCircle onClick={() => setSelectedUsers(selectedUsers.filter(su => su._id !== u._id))} className="ml-2 cursor-pointer"/></div>)}</div>
+                        <div className="max-h-40 overflow-y-auto">{searchResults.map(u => <div key={u._id} onClick={() => !selectedUsers.find(su => su._id === u._id) && setSelectedUsers([...selectedUsers, u])} className="flex items-center p-2 hover:bg-gray-100 dark:hover:bg-dark-700 cursor-pointer rounded"><img src={u.avatar} className="w-8 h-8 rounded-full mr-3"/><p>{u.name}</p></div>)}</div>
+                        <div className="flex justify-end gap-3 mt-4">
+                            <button onClick={() => setShowGroupModal(false)} className="p-2 bg-gray-300 rounded">Cancel</button>
+                            <button onClick={handleCreateGroup} className="p-2 bg-primary-500 text-white rounded">Create</button>
+                        </div>
+                    </div>
+                )}
+            </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 };

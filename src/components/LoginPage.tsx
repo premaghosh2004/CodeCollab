@@ -2,35 +2,48 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Code2, Eye, EyeOff, ArrowLeft, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import axios from 'axios';
+import { User, Page } from '../App';
 
 interface LoginPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: Page) => void;
+  onAuthSuccess: (user: User) => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate, onAuthSuccess }) => {
   const { isDark, toggleTheme } = useTheme();
   const [showPassword, setShowPassword] = useState(false);
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login logic here
-    onNavigate('chat');
+    setLoading(true);
+    if (!email || !password) {
+      alert('Please fill all the fields');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const config = {
+        headers: {
+          'Content-type': 'application/json',
+        },
+      };
+      const { data } = await axios.post('/api/user/login', { email, password }, config);
+      onAuthSuccess(data);
+    } catch (error) {
+      alert('Error Occured!');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-800 transition-colors duration-500">
-      {/* Header */}
       <header className="relative z-10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <motion.button
@@ -59,7 +72,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
         </div>
       </header>
 
-      {/* Login Form */}
       <div className="flex items-center justify-center px-6 py-8">
         <motion.div
           className="w-full max-w-md"
@@ -68,7 +80,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
           transition={{ duration: 0.5 }}
         >
           <div className="bg-white dark:bg-dark-800 rounded-2xl shadow-xl border border-gray-200 dark:border-dark-700 p-8">
-            {/* Logo */}
             <motion.div 
               className="flex items-center justify-center space-x-3 mb-8"
               initial={{ opacity: 0, scale: 0.8 }}
@@ -81,19 +92,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 to-primary-400 bg-clip-text text-transparent">
                 CodeCollab
               </span>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.2 }}
-            >
-              <h2 className="text-3xl font-bold text-center mb-2 text-gray-900 dark:text-white">
-                Welcome Back
-              </h2>
-              <p className="text-center text-gray-600 dark:text-gray-300 mb-8">
-                Sign in to continue coding together
-              </p>
             </motion.div>
 
             <motion.form
@@ -109,10 +107,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
                 </label>
                 <input
                   type="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-900 dark:text-white"
                   placeholder="Enter your email"
                   required
                 />
@@ -125,46 +122,30 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    value={formData.password}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-4 py-3 pr-12 rounded-xl border border-gray-300 dark:border-dark-600 bg-white dark:bg-dark-700"
                     placeholder="Enter your password"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500"
                   >
                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 dark:border-dark-600 rounded"
-                  />
-                  <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">Remember me</span>
-                </label>
-                <button
-                  type="button"
-                  className="text-sm text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors duration-200"
-                >
-                  Forgot password?
-                </button>
-              </div>
-
               <motion.button
                 type="submit"
-                className="w-full py-3 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+                className="w-full py-3 px-4 bg-gradient-to-r from-primary-600 to-primary-500 text-white rounded-xl font-semibold"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
+                disabled={loading}
               >
-                Sign In
+                {loading ? 'Signing In...' : 'Sign In'}
               </motion.button>
             </motion.form>
 
@@ -177,7 +158,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onNavigate }) => {
               Don't have an account?{' '}
               <button
                 onClick={() => onNavigate('signup')}
-                className="text-primary-600 dark:text-primary-400 hover:text-primary-700 dark:hover:text-primary-300 font-medium transition-colors duration-200"
+                className="text-primary-600 dark:text-primary-400 font-medium"
               >
                 Sign up
               </button>

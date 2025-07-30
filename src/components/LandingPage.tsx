@@ -1,44 +1,46 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, Variants } from 'framer-motion';
 import { Code2, MessageSquare, Users, Zap, Moon, Sun } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
+import { Page } from '../App';
 
 interface LandingPageProps {
-  onNavigate: (page: string) => void;
+  onNavigate: (page: Page) => void;
 }
+
+// Corrected Variants for Framer Motion
+const containerVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      delayChildren: 0.2,
+      staggerChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants: Variants = {
+  hidden: { y: 20, opacity: 0 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    transition: {
+      duration: 0.5,
+      ease: 'easeOut',
+    },
+  },
+};
 
 export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
   const { isDark, toggleTheme } = useTheme();
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        delayChildren: 0.2,
-        staggerChildren: 0.1
-      }
-    }
-  };
-
-  const itemVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: {
-      y: 0,
-      opacity: 1,
-      transition: {
-        duration: 0.5,
-        ease: "easeOut"
-      }
-    }
-  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-gray-50 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-800 transition-colors duration-500">
       {/* Header */}
       <header className="relative z-10 px-6 py-4">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <motion.div 
+          <motion.div
             className="flex items-center space-x-3"
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -51,7 +53,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
               CodeCollab
             </span>
           </motion.div>
-          
+
           <motion.button
             onClick={toggleTheme}
             className="p-2 rounded-lg bg-gray-200 dark:bg-dark-700 hover:bg-gray-300 dark:hover:bg-dark-600 transition-colors duration-200"
@@ -67,14 +69,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
       </header>
 
       {/* Hero Section */}
-      <motion.main 
+      <motion.main
         className="max-w-7xl mx-auto px-6 py-16"
         variants={containerVariants}
         initial="hidden"
         animate="visible"
       >
         <div className="text-center mb-16">
-          <motion.h1 
+          <motion.h1
             className="text-5xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-primary-600 via-primary-500 to-primary-400 bg-clip-text text-transparent"
             variants={itemVariants}
           >
@@ -82,15 +84,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             <br />
             <span className="text-gray-900 dark:text-white">Build Better</span>
           </motion.h1>
-          
-          <motion.p 
+
+          <motion.p
             className="text-xl md:text-2xl text-gray-600 dark:text-gray-300 mb-12 max-w-3xl mx-auto leading-relaxed"
             variants={itemVariants}
           >
             The ultimate real-time collaboration platform for developers. Share code, discuss ideas, and build amazing projects together.
           </motion.p>
 
-          <motion.div 
+          <motion.div
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
             variants={itemVariants}
           >
@@ -102,7 +104,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             >
               Get Started Free
             </motion.button>
-            
+
             <motion.button
               onClick={() => onNavigate('login')}
               className="px-8 py-4 bg-gray-200 dark:bg-dark-700 text-gray-900 dark:text-white rounded-xl font-semibold text-lg hover:bg-gray-300 dark:hover:bg-dark-600 transition-all duration-300"
@@ -115,11 +117,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
         </div>
 
         {/* Features Grid */}
-        <motion.div 
+        <motion.div
           className="grid md:grid-cols-3 gap-8 mt-20"
           variants={containerVariants}
         >
-          <motion.div 
+          <motion.div
             className="p-8 rounded-2xl bg-white dark:bg-dark-800 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-dark-700"
             variants={itemVariants}
             whileHover={{ y: -5 }}
@@ -133,7 +135,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             </p>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             className="p-8 rounded-2xl bg-white dark:bg-dark-800 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-dark-700"
             variants={itemVariants}
             whileHover={{ y: -5 }}
@@ -147,7 +149,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onNavigate }) => {
             </p>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             className="p-8 rounded-2xl bg-white dark:bg-dark-800 shadow-lg hover:shadow-xl transition-all duration-300 border border-gray-200 dark:border-dark-700"
             variants={itemVariants}
             whileHover={{ y: -5 }}
