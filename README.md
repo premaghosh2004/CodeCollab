@@ -1,25 +1,143 @@
-🚀 CodeCollab - The Real-time Chat App for DevelopersCodeCollab is a full-stack, real-time chat application designed specifically for developers. It goes beyond a standard messenger by providing specialized tools that streamline technical discussions, pair programming, and team collaboration. Built on the MERN stack with Socket.IO, it offers a seamless and feature-rich experience for engineers who need to communicate effectively.✨ FeaturesCodeCollab is packed with features that make a developer's life easier:👥 Real-time 1-on-1 & Group Chat: Instantaneous messaging powered by Socket.IO.💻 Markdown & Code Syntax Highlighting: Share code snippets with full syntax highlighting directly in the chat.🤖 AI Coding Assistant: Summon an in-chat AI with the /ai command to get instant answers to coding questions.🤝 Team Collaboration: Easily search for other users and create group chats for projects or teams.📸 Image Sharing: Upload and share images directly in conversations.😃 Emoji Support: Express yourself with a built-in emoji picker.🟢 Online & Typing Indicators: See who's online and when they're typing a message.🎨 Modern UI/UX: A clean, responsive interface with a user-selectable Dark/Light Theme.🔐 Secure Authentication: User registration and login secured with JSON Web Tokens (JWT).🛠️ Tech StackFrontendBackendDatabaseReal-time CommunicationReact with ViteNode.jsMongoDBSocket.IOTypeScriptExpress.jsMongooseTailwind CSSJWT for AuthenticationFramer Motion for animationsMulter for file uploadsreact-markdown & react-syntax-highlighter🚀 Getting StartedFollow these instructions to get the project up and running on your local machine.PrerequisitesNode.js (v16 or later)npmMongoDB (local or a cloud instance like MongoDB Atlas)1. Clone the Repositorygit clone https://github.com/premaghosh2004/codecollab.git
+🚀 CodeCollab - The Real-time Chat App for Developers
+
+**CodeCollab** is a full-stack, real-time chat application built **specifically for developers**. It’s more than just a messenger — it’s a productivity tool crafted to support **technical discussions**, **pair programming**, and **team collaboration**. Built using the **MERN stack** with **Socket.IO**, it provides a rich, seamless chat experience.
+
+---
+
+## ✨ Features
+
+CodeCollab is packed with features that make a developer's life easier:
+
+* 👥 **Real-time 1-on-1 & Group Chat** — Instant messaging powered by Socket.IO.
+* 💻 **Markdown & Code Syntax Highlighting** — Share formatted code using markdown with full syntax highlighting.
+* 🤖 **AI Coding Assistant** — Use `/ai` to summon an in-chat AI for coding questions.
+* 🤝 **Team Collaboration** — Search users and form group chats for specific teams or projects.
+* 📸 **Image Sharing** — Upload and share images directly in the chat.
+* 😃 **Emoji Support** — Integrated emoji picker for expression.
+* 🟢 **Online & Typing Indicators** — See who's active and typing in real time.
+* 🎨 **Modern UI/UX** — Clean, responsive design with Dark/Light theme toggle.
+* 🔐 **Secure Authentication** — User registration/login secured with **JWT**.
+
+---
+
+## 🛠️ Tech Stack
+
+| Frontend                 | Backend          | Database | Real-time Communication |
+| ------------------------ | ---------------- | -------- | ----------------------- |
+| React (Vite)             | Node.js          | MongoDB  | Socket.IO               |
+| TypeScript               | Express.js       | Mongoose |                         |
+| Tailwind CSS             | JWT Auth         |          |                         |
+| Framer Motion            | Multer (uploads) |          |                         |
+| react-markdown           |                  |          |                         |
+| react-syntax-highlighter |                  |          |                         |
+
+---
+
+## 🚀 Getting Started
+
+Follow these steps to run the app locally:
+
+### ✅ Prerequisites
+
+* Node.js (v16 or later)
+* npm
+* MongoDB (local or MongoDB Atlas)
+
+---
+
+### 🔧 1. Clone the Repository
+
+```bash
+git clone https://github.com/premaghosh2004/codecollab.git
 cd codecollab
-2. Backend SetupNavigate to the backend directory:cd backend
-Install the dependencies:npm install
-Create a .env file in the backend directory and add the following environment variables:MONGO_URI=your_mongodb_connection_string
+```
+
+---
+
+### 🖥️ 2. Backend Setup
+
+```bash
+cd backend
+npm install
+```
+
+Create a `.env` file inside `backend/` and add:
+
+```env
+MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_super_secret_jwt_key
 CLIENT_URL=http://localhost:5173
-Start the backend server:npm start
-The server will be running on http://localhost:5000.3. Frontend SetupOpen a new terminal and navigate to the project's root directory (codecollab).Install the dependencies:npm install
-Start the frontend development server:npm run dev
-The application will be available at http://localhost:5173.📁 Project Structure/
+```
+
+Start the server:
+
+```bash
+npm start
+```
+
+> Server will run at: `http://localhost:5000`
+
+---
+
+### 🌐 3. Frontend Setup
+
+In a new terminal:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+> App will be available at: `http://localhost:5173`
+
+---
+
+## 📁 Project Structure
+
+```
+/codecollab
 ├── backend/
-│   ├── config/         # Database and token configuration
-│   ├── controllers/    # Express route logic
-│   ├── middleware/     # Authentication and error handling
-│   ├── models/         # Mongoose data models
+│   ├── config/         # DB and JWT config
+│   ├── controllers/    # API logic
+│   ├── middleware/     # Auth & error handlers
+│   ├── models/         # Mongoose models
 │   ├── routes/         # API routes
-│   ├── uploads/        # Folder for uploaded images
-│   └── server.js       # Main backend server file
+│   ├── uploads/        # Uploaded images
+│   └── server.js       # Entry point
 │
-└── src/                # Frontend source code (React)
-    ├── components/     # React components
-    ├── contexts/       # React context providers (e.g., ThemeContext)
-    └── App.tsx         # Main application component
-🤝 ContributingContributions are welcome! If you have suggestions for improvements or want to add new features, please feel free to open an issue or submit a pull request.Fork the ProjectCreate your Feature Branch (git checkout -b feature/AmazingFeature)Commit your Changes (git commit -m 'Add some AmazingFeature')Push to the Branch (git push origin feature/AmazingFeature)Open a Pull Request📄 LicenseThis project is licensed under the MIT License. See the LICENSE file for details.
+└── frontend/
+    └── src/
+        ├── components/ # React components
+        ├── contexts/   # Global state management
+        └── App.tsx     # Main app file
+```
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Here's how:
+
+1. Fork the repo
+2. Create your Feature Branch:
+
+   ```bash
+   git checkout -b feature/AmazingFeature
+   ```
+3. Commit your changes:
+
+   ```bash
+   git commit -m 'Add some AmazingFeature'
+   ```
+4. Push to the branch:
+
+   ```bash
+   git push origin feature/AmazingFeature
+   ```
+5. Open a Pull Request
+
+---
+
+
+
